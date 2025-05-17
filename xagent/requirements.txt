@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+agno
+ollama
+typer
+rich
+sentence-transformers
+torch
