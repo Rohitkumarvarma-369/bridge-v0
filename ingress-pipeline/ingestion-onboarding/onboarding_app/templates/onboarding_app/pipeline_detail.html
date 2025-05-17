@@ -1,0 +1,1018 @@
+{% extends 'base.html' %}
+{% load onboarding_tags %}
+
+{% block extra_head %}
+<style>
+    .pipeline-stage {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        position: relative;
+    }
+    .pipeline-stage-header {
+        padding: 10px 15px;
+        border-bottom: 1px solid #ddd;
+        background-color: #f8f9fa;
+        font-weight: bold;
+    }
+    .pipeline-stage-body {
+        padding: 15px;
+    }
+    .pipeline-stage-success {
+        border-left: 5px solid #28a745;
+    }
+    .pipeline-stage-failed {
+        border-left: 5px solid #dc3545;
+    }
+    .pipeline-stage-running {
+        border-left: 5px solid #007bff;
+    }
+    .pipeline-stage-waiting {
+        border-left: 5px solid #6c757d;
+    }
+    .pipeline-links {
+        list-style: none;
+        padding-left: 0;
+    }
+    .pipeline-links li {
+        margin-bottom: 5px;
+    }
+    .pipeline-progress {
+        height: 10px;
+        margin-bottom: 15px;
+    }
+    .status-badge {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+    }
+    /* Animation for running stages */
+    @keyframes pulse {
+        0% { opacity: 0.8; }
+        50% { opacity: 1; }
+        100% { opacity: 0.8; }
+    }
+    .pulse {
+        animation: pulse 1.5s infinite;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Pipeline Run Details</h1>
+    
+    <div class="my-4">
+        <a href="{% url 'pipeline-list' %}" class="btn btn-primary">Back to Pipeline Runs</a>
+        <a href="{% url 'datasource-detail' pipeline_run.data_source.id %}" class="btn btn-secondary">View Data Source</a>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Pipeline Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>ID:</strong> {{ pipeline_run.pipeline_id }}</p>
+                    <p><strong>Data Source:</strong> {{ pipeline_run.data_source.name }}</p>
+                    <p><strong>URL:</strong> <a href="{{ pipeline_run.data_source.url }}" target="_blank">{{ pipeline_run.data_source.url }}</a></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Status:</strong> 
+                        {% if pipeline_run.status == 'completed' %}
+                            <span class="badge badge-success">{{ pipeline_run.status }}</span>
+                        {% elif pipeline_run.status == 'failed' %}
+                            <span class="badge badge-danger">{{ pipeline_run.status }}</span>
+                        {% elif pipeline_run.status == 'running' %}
+                            <span class="badge badge-primary">{{ pipeline_run.status }}</span>
+                        {% else %}
+                            <span class="badge badge-secondary">{{ pipeline_run.status }}</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Started:</strong> {{ pipeline_run.started_at }}</p>
+                    {% if pipeline_run.completed_at %}
+                        <p><strong>Completed:</strong> {{ pipeline_run.completed_at }}</p>
+                    {% endif %}
+                    {% if pipeline_run.duration_seconds %}
+                        <p><strong>Duration:</strong> {{ pipeline_run.duration_seconds|floatformat:2 }} seconds</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if pipeline_run.error_message %}
+                <div class="alert alert-danger mt-3">
+                    <h5>Error</h5>
+                    <pre class="mb-0">{{ pipeline_run.error_message }}</pre>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Pipeline Stages</h5>
+        </div>
+        <div class="card-body">
+            <div class="progress pipeline-progress">
+                {% if pipeline_run.status == 'completed' %}
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">100%</div>
+                {% elif pipeline_run.status == 'failed' %}
+                    <div class="progress-bar bg-danger" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">Failed</div>
+                {% elif pipeline_run.status == 'running' %}
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 75%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">Running</div>
+                {% else %}
+                    <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                {% endif %}
+            </div>
+            
+            <!-- Pipeline Stage: Firecrawl Mapper -->
+            {% if pipeline_run.stages %}
+                {% for stage in pipeline_run.stages %}
+                    <div class="pipeline-stage 
+                        {% if stage.success %}
+                            pipeline-stage-success
+                        {% elif stage.name == 'firecrawl_mapper' and pipeline_run.status == 'running' %}
+                            pipeline-stage-running
+                        {% elif not stage.success %}
+                            pipeline-stage-failed
+                        {% else %}
+                            pipeline-stage-waiting
+                        {% endif %}">
+                        <div class="pipeline-stage-header">
+                            {{ stage.name|title }}
+                            <span class="status-badge">
+                                {% if stage.success %}
+                                    <span class="badge badge-success">Success</span>
+                                {% elif stage.name == 'firecrawl_mapper' and pipeline_run.status == 'running' %}
+                                    <span class="badge badge-primary pulse">Running</span>
+                                {% elif not stage.success %}
+                                    <span class="badge badge-danger">Failed</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Waiting</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="pipeline-stage-body">
+                            {% if stage.name == 'firecrawl_mapper' %}
+                                <p><strong>Duration:</strong> {{ stage.duration_seconds|floatformat:2 }} seconds</p>
+                                
+                                {% if stage.results.success %}
+                                    <p><strong>Links Found:</strong> {{ stage.results.links|length }}</p>
+                                    
+                                    {% if stage.results.links %}
+                                        <div class="mt-3">
+                                            <h6>Discovered Links</h6>
+                                            <ul class="pipeline-links">
+                                                {% for link in stage.results.links|slice:":15" %}
+                                                    <li><a href="{{ link }}" target="_blank">{{ link }}</a></li>
+                                                {% endfor %}
+                                                
+                                                {% if stage.results.links|length > 15 %}
+                                                    <li class="text-muted">... and {{ stage.results.links|length|add:"-15" }} more links</li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <div class="alert alert-danger">
+                                        <strong>Error:</strong> {{ stage.results.error }}
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                            {% if stage.name == 'sitemap_agent' %}
+                                <p><strong>Duration:</strong> {{ stage.duration_seconds|floatformat:2 }} seconds</p>
+                                
+                                {% if stage.results.success %}
+                                    <p><strong>Agent Type:</strong> {{ pipeline_run.data_source.get_sitemap_agent_type_display }}</p>
+                                    <p><strong>Model:</strong> {{ stage.results.model|default:"agno_llm" }}</p>
+                                    
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle"></i> 
+                                        {% if stage.results.model == "hierarchical" %}
+                                            <strong>Hierarchical Generator:</strong> Successfully processed URLs into structured hierarchy.
+                                        {% else %}
+                                            <strong>LLM Model Used:</strong> Successfully processed using Agno LLM.
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if stage.results.hierarchy %}
+                                        <div class="mt-3">
+                                            <h6>Sitemap Hierarchy</h6>
+                                            <div class="card">
+                                                <div class="card-header d-flex justify-content-between align-items-center">
+                                                    <span>Hierarchy JSON</span>
+                                                    <div>
+                                                        <button class="btn btn-sm btn-outline-primary tree-view-btn" 
+                                                                data-hierarchy="{{ stage.results.hierarchy|safe }}">
+                                                            <i class="fas fa-sitemap"></i> Tree View
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-secondary copy-hierarchy-btn" 
+                                                                data-hierarchy="{{ stage.results.hierarchy|safe }}">
+                                                            <i class="fas fa-copy"></i> Copy
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="card-body">
+                                                    <pre class="mb-0" style="max-height: 300px; overflow-y: auto;">{{ stage.results.hierarchy|pprint }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <div class="alert alert-danger">
+                                        <strong>Error:</strong> {{ stage.results.error }}
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <!-- If no stage data yet -->
+                <div class="pipeline-stage {% if pipeline_run.status == 'running' %}pipeline-stage-running{% else %}pipeline-stage-waiting{% endif %}">
+                    <div class="pipeline-stage-header">
+                        Firecrawl Mapper
+                        <span class="status-badge">
+                            {% if pipeline_run.status == 'running' %}
+                                <span class="badge badge-primary pulse">Running</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Waiting</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="pipeline-stage-body">
+                        <p>Crawling and mapping the website structure using Firecrawl.</p>
+                        
+                        {% if pipeline_run.status == 'running' %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-spinner fa-spin"></i> This stage is currently running...
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Future stages (disabled) -->
+                <div class="pipeline-stage pipeline-stage-waiting opacity-50">
+                    <div class="pipeline-stage-header">
+                        Sitemap Agent
+                        <span class="status-badge">
+                            {% if pipeline_run.status == 'running' and pipeline_run.firecrawl_results.success %}
+                                <span class="badge badge-primary pulse">Running</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Waiting</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="pipeline-stage-body">
+                        <p>Extracts and processes website sitemaps.</p>
+                        <p><strong>Agent Type:</strong> {{ pipeline_run.data_source.get_sitemap_agent_type_display }}</p>
+                        {% if pipeline_run.data_source.sitemap_agent_type == 'agno' %}
+                            <p><strong>Model:</strong> Agno LLM</p>
+                        {% else %}
+                            <p><strong>Model:</strong> Hierarchical Generator</p>
+                        {% endif %}
+                        
+                        {% if pipeline_run.status == 'running' and pipeline_run.firecrawl_results.success %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-spinner fa-spin"></i> 
+                                {% if pipeline_run.data_source.sitemap_agent_type == 'agno' %}
+                                    Loading and initializing Agno LLM...
+                                {% else %}
+                                    Processing URL hierarchy...
+                                {% endif %}
+                                <div class="progress mt-2" style="height: 5px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                                </div>
+                                <small class="text-muted">Generating sitemap hierarchy using {{ pipeline_run.data_source.get_sitemap_agent_type_display }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="pipeline-stage pipeline-stage-waiting opacity-50">
+                    <div class="pipeline-stage-header">
+                        Sitereport Agent
+                        <span class="status-badge">
+                            <span class="badge badge-secondary">Waiting</span>
+                        </span>
+                    </div>
+                    <div class="pipeline-stage-body">
+                        <p>Generates reports on site structure and content.</p>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Add more stages here as they are implemented -->
+        </div>
+    </div>
+</div>
+
+{% if pipeline_run.status == 'running' or pipeline_run.status == 'queued' %}
+<script>
+    // Poll for updates every 3 seconds if the pipeline is still running
+    function updatePipelineStatus() {
+        fetch("{% url 'pipeline-status' pipeline_run.id %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== "{{ pipeline_run.status }}") {
+                    // Reload the page if the status has changed
+                    window.location.reload();
+                }
+            })
+            .catch(error => console.error("Error fetching pipeline status:", error));
+    }
+    
+    // Set up polling
+    const statusInterval = setInterval(updatePipelineStatus, 3000);
+    
+    // Clean up interval when navigating away
+    window.addEventListener('beforeunload', function() {
+        clearInterval(statusInterval);
+    });
+</script>
+{% endif %}
+
+<!-- Tree View Modal -->
+<div class="modal fade" id="treeViewModal" tabindex="-1" role="dialog" aria-labelledby="treeViewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="treeViewModalLabel">Site Hierarchy Tree</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col">
+                        <button id="expandAllBtn" class="btn btn-sm btn-outline-secondary">Expand All</button>
+                        <button id="collapseAllBtn" class="btn btn-sm btn-outline-secondary ml-2">Collapse All</button>
+                        <button id="selectAllBtn" class="btn btn-sm btn-outline-primary ml-2">Select All</button>
+                        <button id="deselectAllBtn" class="btn btn-sm btn-outline-danger ml-2">Deselect All</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 border-right">
+                        <div id="hierarchy-tree" class="overflow-auto" style="max-height: 60vh;"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Selected URLs Preview (<span id="url-count">0</span>)</h6>
+                        <div id="selected-urls" class="overflow-auto" style="max-height: 60vh;">
+                            <p class="text-muted">Select nodes from the tree to see URLs here.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="exportUrlsBtn">Export URLs</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Tree View and URL Export -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tree View Button Event Listener
+        const treeViewButtons = document.querySelectorAll('.tree-view-btn');
+        let hierarchyData = null;
+        let selectedNodeIds = new Set();
+        
+        treeViewButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const rawData = this.getAttribute('data-hierarchy');
+                try {
+                    // Try to parse the data
+                    hierarchyData = JSON.parse(rawData);
+                } catch (err) {
+                    console.error('Error parsing hierarchy data:', err);
+                    // Try to use the pre-formatted text as fallback
+                    try {
+                        const jsonText = document.querySelector('pre').textContent;
+                        hierarchyData = JSON.parse(jsonText);
+                    } catch (e) {
+                        console.error('Could not parse JSON from pre element:', e);
+                        alert('Could not parse hierarchy data. Please check the console for errors.');
+                        return;
+                    }
+                }
+                
+                // Reset selections
+                selectedNodeIds.clear();
+                
+                // Render the tree
+                renderHierarchyTree(hierarchyData);
+                
+                // Show the modal
+                $('#treeViewModal').modal('show');
+            });
+        });
+        
+        // Tree rendering function
+        function renderHierarchyTree(data) {
+            const treeContainer = document.getElementById('hierarchy-tree');
+            treeContainer.innerHTML = '';
+            
+            // Helper function to sanitize IDs for CSS selectors
+            function sanitizeId(id) {
+                // Replace dots, slashes, and other problematic characters
+                return id.replace(/[./#&=:;,+?@\[\](){}|\\^$~%'"<>!*]/g, '_');
+            }
+            
+            // Create the root UL element
+            const rootUl = document.createElement('ul');
+            rootUl.className = 'list-unstyled';
+            
+            // Render each domain as a top-level node
+            for (const domain in data) {
+                const domainLi = document.createElement('li');
+                domainLi.className = 'mb-2';
+                
+                // Create the collapsible node with sanitized IDs
+                const sanitizedDomain = sanitizeId(domain);
+                const nodeId = `node-${sanitizedDomain}`;
+                const collapseId = `collapse-${sanitizedDomain}`;
+                
+                // Add checkbox for selection
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = nodeId;
+                checkbox.className = 'mr-2 node-checkbox';
+                checkbox.setAttribute('data-node-id', nodeId);
+                checkbox.setAttribute('data-original-id', domain); // Store original value
+                
+                // Add collapse button
+                const collapseButton = document.createElement('button');
+                collapseButton.className = 'btn btn-sm btn-link text-decoration-none p-0 mr-2 node-collapse-btn';
+                collapseButton.innerHTML = '<i class="fas fa-caret-down"></i>';
+                collapseButton.setAttribute('data-target', `#${collapseId}`);
+                
+                // Add label
+                const label = document.createElement('label');
+                label.htmlFor = nodeId;
+                label.className = 'font-weight-bold';
+                label.textContent = domain;
+                
+                // URL count
+                const urlCount = document.createElement('span');
+                urlCount.className = 'badge badge-info ml-2';
+                urlCount.textContent = data[domain].urls ? data[domain].urls.length : 0;
+                
+                // Organize the DOM structure
+                domainLi.appendChild(checkbox);
+                domainLi.appendChild(collapseButton);
+                domainLi.appendChild(label);
+                domainLi.appendChild(urlCount);
+                
+                // Create collapsible content for paths
+                const collapseDiv = document.createElement('div');
+                collapseDiv.className = 'collapse show ml-4';
+                collapseDiv.id = collapseId;
+                
+                // Recursively add child nodes if paths exist
+                if (data[domain].paths && Object.keys(data[domain].paths).length > 0) {
+                    const pathsUl = renderPathsTree(data[domain].paths, nodeId, sanitizeId);
+                    collapseDiv.appendChild(pathsUl);
+                }
+                
+                domainLi.appendChild(collapseDiv);
+                rootUl.appendChild(domainLi);
+                
+                // Add checkbox event listener
+                checkbox.addEventListener('change', function() {
+                    const nodeId = this.getAttribute('data-node-id');
+                    if (this.checked) {
+                        selectedNodeIds.add(nodeId);
+                    } else {
+                        selectedNodeIds.delete(nodeId);
+                    }
+                    
+                    // Toggle all child checkboxes
+                    const childCheckboxes = document.querySelectorAll(`input[data-node-id^="${nodeId}-"]`);
+                    childCheckboxes.forEach(child => {
+                        child.checked = this.checked;
+                        if (this.checked) {
+                            selectedNodeIds.add(child.getAttribute('data-node-id'));
+                        } else {
+                            selectedNodeIds.delete(child.getAttribute('data-node-id'));
+                        }
+                    });
+                    
+                    updateSelectedUrls();
+                });
+                
+                // Add collapse button event listener
+                collapseButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('data-target');
+                    const collapseElement = document.querySelector(targetId);
+                    
+                    // Check if the element exists before trying to access its properties
+                    if (collapseElement) {
+                        if (collapseElement.classList.contains('show')) {
+                            collapseElement.classList.remove('show');
+                            this.innerHTML = '<i class="fas fa-caret-right"></i>';
+                        } else {
+                            collapseElement.classList.add('show');
+                            this.innerHTML = '<i class="fas fa-caret-down"></i>';
+                        }
+                    } else {
+                        console.error(`Element with selector "${targetId}" not found`);
+                    }
+                });
+            }
+            
+            treeContainer.appendChild(rootUl);
+        }
+        
+        // Recursive function to render paths
+        function renderPathsTree(paths, parentId, sanitizeIdFn) {
+            const pathsUl = document.createElement('ul');
+            pathsUl.className = 'list-unstyled';
+            
+            // Helper function to sanitize IDs for CSS selectors
+            function sanitizeId(id) {
+                // Replace dots, slashes, and other problematic characters
+                return id.replace(/[./#&=:;,+?@\[\](){}|\\^$~%'"<>!*]/g, '_');
+            }
+            
+            // Get all path keys
+            const pathKeys = Object.keys(paths);
+            
+            // Initial batch size
+            const initialBatchSize = 20;
+            const initialKeys = pathKeys.slice(0, initialBatchSize);
+            const remainingKeys = pathKeys.slice(initialBatchSize);
+            
+            // Render initial batch
+            initialKeys.forEach(path => {
+                pathsUl.appendChild(createPathNode(path, paths[path], parentId, sanitizeIdFn));
+            });
+            
+            // Add "load more" button if there are more items
+            if (remainingKeys.length > 0) {
+                const loadMoreLi = document.createElement('li');
+                loadMoreLi.className = 'mb-2 mt-2 text-center';
+                
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'btn btn-sm btn-outline-secondary';
+                loadMoreBtn.textContent = `Load ${Math.min(20, remainingKeys.length)} more items (${remainingKeys.length} remaining)`;
+                
+                loadMoreBtn.addEventListener('click', function() {
+                    // Remove the load more button
+                    loadMoreLi.remove();
+                    
+                    // Get the next batch
+                    const nextBatchSize = 20;
+                    const nextBatch = remainingKeys.splice(0, nextBatchSize);
+                    
+                    // Render the next batch
+                    nextBatch.forEach(path => {
+                        pathsUl.appendChild(createPathNode(path, paths[path], parentId, sanitizeIdFn));
+                    });
+                    
+                    // Add a new "load more" button if there are still more items
+                    if (remainingKeys.length > 0) {
+                        const newLoadMoreLi = document.createElement('li');
+                        newLoadMoreLi.className = 'mb-2 mt-2 text-center';
+                        
+                        const newLoadMoreBtn = document.createElement('button');
+                        newLoadMoreBtn.className = 'btn btn-sm btn-outline-secondary';
+                        newLoadMoreBtn.textContent = `Load ${Math.min(20, remainingKeys.length)} more items (${remainingKeys.length} remaining)`;
+                        
+                        newLoadMoreBtn.addEventListener('click', function() {
+                            // Use the same event handler logic recursively
+                            loadMoreBtn.click();
+                        });
+                        
+                        newLoadMoreLi.appendChild(newLoadMoreBtn);
+                        pathsUl.appendChild(newLoadMoreLi);
+                    }
+                });
+                
+                loadMoreLi.appendChild(loadMoreBtn);
+                pathsUl.appendChild(loadMoreLi);
+            }
+            
+            return pathsUl;
+        }
+        
+        // Helper function to create a path node
+        function createPathNode(path, pathData, parentId, sanitizeIdFn) {
+            // If sanitizeIdFn isn't provided, define it
+            if (!sanitizeIdFn) {
+                sanitizeIdFn = function(id) {
+                    return id.replace(/[./#&=:;,+?@\[\](){}|\\^$~%'"<>!*]/g, '_');
+                };
+            }
+            
+            const pathLi = document.createElement('li');
+            pathLi.className = 'mb-2';
+            
+            // Create the collapsible node with sanitized IDs
+            const sanitizedPath = sanitizeIdFn(path);
+            const nodeId = `${parentId}-${sanitizedPath}`;
+            const collapseId = `collapse-${nodeId}`;
+            
+            // Add checkbox for selection
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = nodeId;
+            checkbox.className = 'mr-2 node-checkbox';
+            checkbox.setAttribute('data-node-id', nodeId);
+            checkbox.setAttribute('data-original-path', path); // Store original value
+            
+            // Add collapse button if it has children
+            const hasChildren = pathData.paths && Object.keys(pathData.paths).length > 0;
+            if (hasChildren) {
+                const collapseButton = document.createElement('button');
+                collapseButton.className = 'btn btn-sm btn-link text-decoration-none p-0 mr-2 node-collapse-btn';
+                collapseButton.innerHTML = '<i class="fas fa-caret-down"></i>';
+                collapseButton.setAttribute('data-target', `#${collapseId}`);
+                pathLi.appendChild(collapseButton);
+                
+                // Add collapse button event listener
+                collapseButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('data-target');
+                    const collapseElement = document.querySelector(targetId);
+                    
+                    // Check if the element exists before trying to access its properties
+                    if (collapseElement) {
+                        if (collapseElement.classList.contains('show')) {
+                            collapseElement.classList.remove('show');
+                            this.innerHTML = '<i class="fas fa-caret-right"></i>';
+                        } else {
+                            collapseElement.classList.add('show');
+                            this.innerHTML = '<i class="fas fa-caret-down"></i>';
+                        }
+                    } else {
+                        console.error(`Element with selector "${targetId}" not found`);
+                    }
+                });
+            } else {
+                // Add spacing to align with other nodes
+                const spacer = document.createElement('span');
+                spacer.className = 'mr-4';
+                spacer.innerHTML = '&nbsp;';
+                pathLi.appendChild(spacer);
+            }
+            
+            // Add label
+            const label = document.createElement('label');
+            label.htmlFor = nodeId;
+            label.textContent = path;
+            
+            // URL count
+            const urlCount = document.createElement('span');
+            urlCount.className = 'badge badge-info ml-2';
+            urlCount.textContent = pathData.urls ? pathData.urls.length : 0;
+            
+            // Organize the DOM structure
+            pathLi.insertBefore(checkbox, pathLi.firstChild);
+            pathLi.appendChild(label);
+            pathLi.appendChild(urlCount);
+            
+            // Create collapsible content for paths
+            if (hasChildren) {
+                const collapseDiv = document.createElement('div');
+                collapseDiv.className = 'collapse show ml-4';
+                collapseDiv.id = collapseId;
+                
+                const childPathsUl = renderPathsTree(pathData.paths, nodeId, sanitizeIdFn);
+                collapseDiv.appendChild(childPathsUl);
+                pathLi.appendChild(collapseDiv);
+            }
+            
+            // Add checkbox event listener
+            checkbox.addEventListener('change', function() {
+                const nodeId = this.getAttribute('data-node-id');
+                if (this.checked) {
+                    selectedNodeIds.add(nodeId);
+                } else {
+                    selectedNodeIds.delete(nodeId);
+                }
+                
+                // Toggle all child checkboxes
+                const childCheckboxes = document.querySelectorAll(`input[data-node-id^="${nodeId}-"]`);
+                childCheckboxes.forEach(child => {
+                    child.checked = this.checked;
+                    if (this.checked) {
+                        selectedNodeIds.add(child.getAttribute('data-node-id'));
+                    } else {
+                        selectedNodeIds.delete(child.getAttribute('data-node-id'));
+                    }
+                });
+                
+                updateSelectedUrls();
+            });
+            
+            return pathLi;
+        }
+        
+        // Function to get all URLs from selected nodes
+        function getSelectedUrls() {
+            const urls = new Set();
+            
+            for (const nodeId of selectedNodeIds) {
+                const parts = nodeId.split('-');
+                parts.shift(); // Remove the "node" prefix
+                
+                // Find the corresponding checkbox to get the original values
+                const checkbox = document.querySelector(`[data-node-id="${nodeId}"]`);
+                if (!checkbox) continue;
+                
+                // Handle domain-level nodes
+                if (parts.length === 1) {
+                    // Use the original domain value instead of the sanitized version
+                    const domain = checkbox.getAttribute('data-original-id') || parts[0];
+                    
+                    if (hierarchyData[domain] && hierarchyData[domain].urls) {
+                        hierarchyData[domain].urls.forEach(url => urls.add(url));
+                    }
+                    
+                    // Do NOT automatically add all URLs from subpaths
+                    // Only add subpath URLs if those specific nodes are also selected
+                } 
+                // Handle path-level nodes
+                else if (parts.length > 1) {
+                    // Use the original domain value
+                    const domainCheckbox = document.querySelector(`[data-node-id="node-${parts[0]}"]`);
+                    const domain = domainCheckbox ? 
+                        (domainCheckbox.getAttribute('data-original-id') || parts[0]) : parts[0];
+                    
+                    // Navigate to the specific path
+                    let currentPath = hierarchyData[domain];
+                    let pathFound = true;
+                    
+                    // Get the original path values if possible
+                    for (let i = 1; i < parts.length; i++) {
+                        // Find the checkbox for this path segment to get original value
+                        const segmentId = `node-${parts.slice(0, i).join('-')}-${parts[i]}`;
+                        const segmentCheckbox = document.querySelector(`[data-node-id="${segmentId}"]`);
+                        const originalPath = segmentCheckbox ? 
+                            (segmentCheckbox.getAttribute('data-original-path') || parts[i]) : parts[i];
+                        
+                        if (currentPath.paths && currentPath.paths[originalPath]) {
+                            currentPath = currentPath.paths[originalPath];
+                        } else {
+                            pathFound = false;
+                            break;
+                        }
+                    }
+                    
+                    // Add URLs only from this specific path if it was found
+                    if (pathFound && currentPath && currentPath.urls) {
+                        currentPath.urls.forEach(url => urls.add(url));
+                    }
+                }
+            }
+            
+            return Array.from(urls);
+        }
+        
+        // Update the selected URLs preview
+        function updateSelectedUrls() {
+            const selectedUrls = getSelectedUrls();
+            const container = document.getElementById('selected-urls');
+            const urlCount = document.getElementById('url-count');
+            
+            urlCount.textContent = selectedUrls.length;
+            
+            if (selectedUrls.length === 0) {
+                container.innerHTML = '<p class="text-muted">Select nodes from the tree to see URLs here.</p>';
+                return;
+            }
+            
+            // Limit initial display to first 20 URLs
+            const initialDisplayLimit = 20;
+            const displayUrls = selectedUrls.slice(0, initialDisplayLimit);
+            const remainingUrls = selectedUrls.length > initialDisplayLimit ? selectedUrls.slice(initialDisplayLimit) : [];
+            
+            let html = '<ul class="list-group" id="url-list">';
+            displayUrls.forEach(url => {
+                html += `<li class="list-group-item p-2">${url}</li>`;
+            });
+            html += '</ul>';
+            
+            // Add load more button if needed
+            if (remainingUrls.length > 0) {
+                html += `<div class="text-center mt-2">
+                    <button id="load-more-urls" class="btn btn-sm btn-outline-secondary">
+                        Load ${Math.min(20, remainingUrls.length)} more URLs (${remainingUrls.length} remaining)
+                    </button>
+                </div>`;
+            }
+            
+            container.innerHTML = html;
+            
+            // Add event listener for load more button
+            if (remainingUrls.length > 0) {
+                document.getElementById('load-more-urls').addEventListener('click', function() {
+                    loadMoreUrls(remainingUrls);
+                });
+            }
+        }
+        
+        // Function to load more URLs
+        function loadMoreUrls(remainingUrls) {
+            const urlList = document.getElementById('url-list');
+            const loadMoreBtn = document.getElementById('load-more-urls');
+            
+            // Get the next batch of URLs
+            const nextBatchSize = 20;
+            const nextBatch = remainingUrls.splice(0, nextBatchSize);
+            
+            // Add the next batch to the list
+            nextBatch.forEach(url => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item p-2';
+                li.textContent = url;
+                urlList.appendChild(li);
+            });
+            
+            // Update or remove the load more button
+            if (remainingUrls.length > 0) {
+                loadMoreBtn.textContent = `Load ${Math.min(20, remainingUrls.length)} more URLs (${remainingUrls.length} remaining)`;
+                
+                // Update the click handler with the new remaining URLs
+                loadMoreBtn.replaceWith(loadMoreBtn.cloneNode(true));
+                document.getElementById('load-more-urls').addEventListener('click', function() {
+                    loadMoreUrls(remainingUrls);
+                });
+            } else {
+                loadMoreBtn.parentNode.remove();
+            }
+        }
+        
+        // Export URLs button
+        document.getElementById('exportUrlsBtn').addEventListener('click', function() {
+            const selectedUrls = getSelectedUrls();
+            
+            if (selectedUrls.length === 0) {
+                alert('Please select at least one node to export URLs.');
+                return;
+            }
+            
+            // Create a text file with one URL per line
+            const urlText = selectedUrls.join('\n');
+            const blob = new Blob([urlText], { type: 'text/plain' });
+            
+            // Create download link
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'exported_urls.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+        
+        // Expand/Collapse all buttons
+        document.getElementById('expandAllBtn').addEventListener('click', function() {
+            const collapseElements = document.querySelectorAll('.collapse');
+            collapseElements.forEach(item => {
+                item.classList.add('show');
+            });
+            // Update all collapse button icons
+            document.querySelectorAll('.node-collapse-btn').forEach(btn => {
+                btn.innerHTML = '<i class="fas fa-caret-down"></i>';
+            });
+        });
+        
+        document.getElementById('collapseAllBtn').addEventListener('click', function() {
+            const collapseElements = document.querySelectorAll('.collapse');
+            collapseElements.forEach(item => {
+                item.classList.remove('show');
+            });
+            // Update all collapse button icons
+            document.querySelectorAll('.node-collapse-btn').forEach(btn => {
+                btn.innerHTML = '<i class="fas fa-caret-right"></i>';
+            });
+        });
+        
+        // Select/Deselect all buttons
+        document.getElementById('selectAllBtn').addEventListener('click', function() {
+            document.querySelectorAll('.node-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+                selectedNodeIds.add(checkbox.getAttribute('data-node-id'));
+            });
+            updateSelectedUrls();
+        });
+        
+        document.getElementById('deselectAllBtn').addEventListener('click', function() {
+            document.querySelectorAll('.node-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            selectedNodeIds.clear();
+            updateSelectedUrls();
+        });
+    });
+</script>
+
+<!-- JavaScript for Copy Button -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyButtons = document.querySelectorAll('.copy-hierarchy-btn');
+        
+        copyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                let hierarchyData = this.getAttribute('data-hierarchy');
+                
+                // Manually fix common escape issues with JSON
+                try {
+                    // First try to parse if it's already valid JSON
+                    JSON.parse(hierarchyData);
+                } catch (err) {
+                    // If it fails, try to clean up the data
+                    try {
+                        // Replace Unicode escapes
+                        hierarchyData = hierarchyData.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+                            return String.fromCharCode(parseInt(hex, 16));
+                        });
+                        
+                        // Try to evaluate it safely as a JavaScript object
+                        // This is a last resort approach
+                        const jsonText = document.querySelector('pre').textContent;
+                        try {
+                            // Just take the pre-formatted text directly
+                            hierarchyData = jsonText;
+                        } catch (e) {
+                            console.error('Could not get JSON from pre element:', e);
+                        }
+                    } catch (cleanupErr) {
+                        console.error('Error cleaning up JSON data:', cleanupErr);
+                    }
+                }
+                
+                copyToClipboard(hierarchyData, this);
+            });
+        });
+        
+        function copyToClipboard(text, button) {
+            try {
+                // Use modern clipboard API if available
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text)
+                        .then(() => {
+                            showCopySuccess(button);
+                        })
+                        .catch(err => {
+                            console.error('Failed to copy with clipboard API:', err);
+                            fallbackCopyMethod(text, button);
+                        });
+                } else {
+                    fallbackCopyMethod(text, button);
+                }
+            } catch (err) {
+                console.error('Copy process failed:', err);
+                fallbackCopyMethod(text, button);
+            }
+        }
+        
+        function fallbackCopyMethod(text, button) {
+            // Create a temporary element to hold the text
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', ''); // Prevent keyboard from showing on mobile
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            
+            // Check if there's any selection already, save it
+            const selectedRange = document.getSelection().rangeCount > 0 ? 
+                document.getSelection().getRangeAt(0) : false;
+            
+            // Select the text field
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+            
+            // Copy the text
+            document.execCommand('copy');
+            
+            // Remove the temporary element
+            document.body.removeChild(textarea);
+            
+            // Restore original selection if any
+            if (selectedRange) {
+                document.getSelection().removeAllRanges();
+                document.getSelection().addRange(selectedRange);
+            }
+            
+            showCopySuccess(button);
+        }
+        
+        function showCopySuccess(button) {
+            // Change button text to indicate copy was successful
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            
+            // Reset button text after 2 seconds
+            setTimeout(() => {
+                button.innerHTML = originalText;
+            }, 2000);
+        }
+    });
+</script>
+{% endblock %} 

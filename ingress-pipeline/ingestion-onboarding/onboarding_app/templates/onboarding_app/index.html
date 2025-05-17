@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="jumbotron">
+        <h1 class="display-4">Bridge Ingestion Module</h1>
+        <p class="lead">A unified platform for ingesting, processing, and enriching data from various sources.</p>
+        <hr class="my-4">
+        <p>Start by adding data sources and running the ingestion pipeline.</p>
+        <a class="btn btn-primary btn-lg" href="{% url 'datasource-list' %}" role="button">Manage Data Sources</a>
+        <a class="btn btn-success btn-lg" href="{% url 'pipeline-list' %}" role="button">View Pipeline Runs</a>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Data Sources</h5>
+                </div>
+                <div class="card-body">
+                    <p>Configure and manage different types of data sources including websites, APIs, files, and databases.</p>
+                    <a href="{% url 'datasource-list' %}" class="btn btn-outline-primary">Manage Data Sources</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Ingestion Pipeline</h5>
+                </div>
+                <div class="card-body">
+                    <p>Run and monitor the data ingestion pipeline with multiple stages for crawling, extraction, and enrichment.</p>
+                    <a href="{% url 'pipeline-list' %}" class="btn btn-outline-success">View Pipeline Runs</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Documentation</h5>
+                </div>
+                <div class="card-body">
+                    <p>Learn how to use the Bridge Ingestion Module and understand the different pipeline stages.</p>
+                    <a href="#" class="btn btn-outline-info">View Documentation</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

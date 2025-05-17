@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Pipeline Runs</h1>
+    
+    <div class="my-4">
+        <a href="{% url 'datasource-list' %}" class="btn btn-primary">Back to Data Sources</a>
+    </div>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Recent Pipeline Executions</h5>
+        </div>
+        <div class="card-body">
+            {% if pipeline_runs %}
+                <table class="table table-striped table-hover">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Data Source</th>
+                            <th>Started</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for run in pipeline_runs %}
+                        <tr>
+                            <td>{{ run.pipeline_id }}</td>
+                            <td>{{ run.data_source.name }}</td>
+                            <td>{{ run.started_at }}</td>
+                            <td>
+                                {% if run.status == 'completed' %}
+                                    <span class="badge badge-success">{{ run.status }}</span>
+                                {% elif run.status == 'failed' %}
+                                    <span class="badge badge-danger">{{ run.status }}</span>
+                                {% elif run.status == 'running' %}
+                                    <span class="badge badge-primary">{{ run.status }}</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">{{ run.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if run.duration_seconds %}
+                                    {{ run.duration_seconds|floatformat:2 }} seconds
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'pipeline-detail' run.id %}" class="btn btn-sm btn-info">Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info">
+                    No pipeline runs found. <a href="{% url 'datasource-list' %}">Add a data source</a> and start a pipeline.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 
